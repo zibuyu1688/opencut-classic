@@ -16,7 +16,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { cn } from "@/utils/ui";
-import { DEFAULT_LOGO_URL, SITE_URL } from "@/site/brand";
+import { DEFAULT_LOGO_URL } from "@/site/brand";
 import { SOCIAL_LINKS } from "@/site/social";
 import {
 	ContextMenu,
@@ -48,9 +48,11 @@ export function Header() {
 		},
 	];
 
+	const chineseRepoUrl = "https://github.com/zibuyu1688/opencut-classic";
+
 	return (
-		<header className="bg-background shadow-background/85 sticky top-0 z-10 shadow-[0_30px_35px_15px_rgba(0,0,0,1)]">
-			<div className="relative flex w-full items-center justify-between px-6 pt-4">
+		<header className="bg-background/72 sticky top-0 z-10 border-b border-white/60 backdrop-blur-2xl shadow-[0_10px_40px_-26px_rgba(0,0,0,0.5)] dark:border-white/10">
+			<div className="relative mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
 				<div className="relative z-10 flex items-center gap-6">
 					<ContextMenu>
 						<ContextMenuTrigger asChild>
@@ -118,6 +120,11 @@ export function Header() {
 						</Button>
 					</div>
 					<div className="hidden items-center gap-3 md:flex">
+						<Link href={chineseRepoUrl} target="_blank" rel="noopener noreferrer">
+							<Button className="bg-background text-sm" variant="outline">
+								汉化项目库
+							</Button>
+						</Link>
 						<Link href={SOCIAL_LINKS.github}>
 							<Button className="bg-background text-sm" variant="outline">
 								<HugeiconsIcon icon={GithubIcon} className="size-4" />

@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify({
-					model: parsed.data.model || "deepseek-chat",
+					model: parsed.data.model || "deepseek-v4-flash",
 					temperature: parsed.data.task === "copy" ? 0.9 : 0.7,
 					messages: buildMessages({
 						task: parsed.data.task,

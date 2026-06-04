@@ -7,7 +7,7 @@ export type DeepseekStoredCredentials = {
 const DEEPSEEK_STORAGE_KEY = "opencut.ai.deepseek.credentials";
 
 const DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com";
-const DEFAULT_DEEPSEEK_MODEL = "deepseek-chat";
+const DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash";
 
 export function createEmptyDeepseekStoredCredentials(): DeepseekStoredCredentials {
 	return {
@@ -41,7 +41,9 @@ export function loadStoredDeepseekCredentials(): DeepseekStoredCredentials {
 				: DEFAULT_DEEPSEEK_BASE_URL;
 		const model =
 			typeof parsed.model === "string" && parsed.model.trim()
-				? parsed.model
+				? parsed.model === "deepseek-chat"
+					? DEFAULT_DEEPSEEK_MODEL
+					: parsed.model
 				: DEFAULT_DEEPSEEK_MODEL;
 
 		return {

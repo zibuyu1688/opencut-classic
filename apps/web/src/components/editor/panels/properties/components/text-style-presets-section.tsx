@@ -64,13 +64,13 @@ export function TextStylePresetsSection({
 												type="button"
 												onClick={() => handleApplyPreset({ preset })}
 												className={cn(
-													"flex flex-col gap-1 rounded-md border p-1.5 text-left transition-colors",
+													"flex flex-col gap-1 rounded-md border p-1 text-left transition-colors",
 													isActive
 														? "border-primary bg-accent"
 														: "border-border hover:bg-accent/50",
 												)}
 											>
-												<div className="aspect-square w-full overflow-hidden rounded-sm">
+												<div className="aspect-[5/4] w-full overflow-hidden rounded-sm">
 													<TextStylePreview preset={preset} />
 												</div>
 												<div className="truncate text-[11px] text-foreground/90">

@@ -1,8 +1,24 @@
-# OpenCut (Legacy)
+# OpenCut (Legacy) 汉化版
 
 This is the original OpenCut codebase. It's archived and no longer maintained.
 
-The rewrite is happening at [opencut-app/opencut](https://github.com/opencut-app/opencut).
+汉化版项目库地址：[zibuyu1688/opencut-classic](https://github.com/zibuyu1688/opencut-classic).
+
+## 版本说明
+
+本次更新重点优化了面向用户的使用体验，主要包含以下内容：
+
+- 界面已完成中文汉化，降低上手成本
+- 新增文字样式能力，支持更丰富的字幕和标题表达
+- 新增 AI 文字转语音功能，便于快速生成配音
+- 新增 AI 文案推荐功能，帮助快速生成更合适的内容文案
+
+如果你是通过解压包使用项目，可以直接双击根目录的启动器：
+
+- macOS: [OpenCut.command](OpenCut.command)
+- Windows: [OpenCut.bat](OpenCut.bat)
+
+双击后会自动启动本地服务并打开浏览器，适合演示和本地体验。
 
 ## Sponsors
 
@@ -21,6 +37,31 @@ Thanks to [Vercel](https://vercel.com?utm_source=github-opencut&utm_campaign=oss
 - **Privacy**: Your videos stay on your device
 - **Free features**: Most basic CapCut features are now paywalled 
 - **Simple**: People want editors that are easy to use - CapCut proved that
+
+## What This Repo Includes
+
+- Web editor built with Next.js in [apps/web/](apps/web/)
+- Native desktop app work in [apps/desktop/](apps/desktop/) built with GPUI
+- Rust core in [rust/](rust/) for compositor, effects, masks, and WASM bindings
+- Architecture notes and subsystem docs in [docs/](docs/)
+
+## Quick Start
+
+首次使用时，请先解压完整项目包，然后点击根目录的快捷启动按钮：
+
+- macOS: double-click [OpenCut.command](OpenCut.command)
+- Windows: double-click [OpenCut.bat](OpenCut.bat)
+
+点击后会自动启动本地服务并打开浏览器，适合首次体验和演示。
+
+If you prefer the manual setup flow, keep reading below.
+
+## 免责说明
+
+- 本汉化版仅用于学习、交流与本地体验，不保证适用于所有生产场景。
+- 汉化版项目库与汉化作者官网仅用于版本整理与信息说明，使用者需自行判断并承担相关使用风险。
+- 在使用、修改、分发或二次打包前，请自行确认依赖、授权、数据安全与系统兼容性。
+- 若因第三方依赖、系统环境或本地文件造成问题，维护者不承担由此产生的损失。
 
 ## Project Structure
 
@@ -68,6 +109,8 @@ Thanks to [Vercel](https://vercel.com?utm_source=github-opencut&utm_campaign=oss
 The application will be available at [http://localhost:3000](http://localhost:3000).
 
 The `.env.example` has sensible defaults that match the Docker Compose config — it should work out of the box.
+
+> Tip: if you just want a one-click launch on macOS or Windows, use the root launcher files described in the version note above.
 
 ### Desktop setup
 
@@ -158,5 +201,5 @@ See our [Contributing Guide](.github/CONTRIBUTING.md) for detailed setup instruc
 
 ---
 
-![Star History Chart](https://api.star-history.com/svg?repos=opencut-app/opencut&type=Date)
+![Star History Chart](https://api.star-history.com/svg?repos=zibuyu1688/opencut-classic&type=Date)
 

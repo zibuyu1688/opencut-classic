@@ -12,10 +12,10 @@ export const metadata: Metadata = {
 
 export default async function Home() {
 	return (
-		<div>
+		<main className="relative overflow-hidden">
 			<Header />
 			<Hero />
 			<Footer />
-		</div>
+		</main>
 	);
 }

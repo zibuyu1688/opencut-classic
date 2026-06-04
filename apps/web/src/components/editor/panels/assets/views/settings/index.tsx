@@ -420,7 +420,7 @@ export function SettingsView() {
 											model: currentTarget.value,
 										}))
 									}
-									placeholder="DeepSeek 模型（默认 deepseek-chat）"
+									placeholder="DeepSeek 模型（默认 deepseek-v4-flash）"
 								/>
 							</div>
 							<div className="mt-3 flex justify-end gap-2">
