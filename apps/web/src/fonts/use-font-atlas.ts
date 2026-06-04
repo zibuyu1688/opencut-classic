@@ -4,6 +4,7 @@ import {
 	loadFontAtlas,
 	clearFontAtlasCache,
 } from "@/fonts/google-fonts";
+import { CUSTOM_FONT_FAMILIES } from "@/fonts/custom-fonts";
 import type { FontAtlas } from "@/fonts/types";
 import { SYSTEM_FONTS } from "@/fonts/system-fonts";
 
@@ -20,7 +21,6 @@ export function useFontAtlas({ open }: { open: boolean }) {
 	useEffect(() => {
 		if (!open || atlas) return;
 
-		setStatus("loading");
 		loadFontAtlas().then((data) => {
 			if (data) {
 				setAtlas(data);
@@ -45,8 +45,10 @@ export function useFontAtlas({ open }: { open: boolean }) {
 	}, []);
 
 	const fontNames = useMemo(() => {
-		if (!atlas) return [];
-		return [...Object.keys(atlas.fonts), ...SYSTEM_FONTS].sort();
+		const atlasFontNames = atlas ? Object.keys(atlas.fonts) : [];
+		return Array.from(
+			new Set([...atlasFontNames, ...SYSTEM_FONTS, ...CUSTOM_FONT_FAMILIES]),
+		).sort();
 	}, [atlas]);
 
 	return { atlas, status, fontNames, retry };

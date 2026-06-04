@@ -23,6 +23,11 @@ const webEnvSchema = z.object({
 	MARBLE_WORKSPACE_KEY: z.string(),
 	FREESOUND_CLIENT_ID: z.string(),
 	FREESOUND_API_KEY: z.string(),
+	ALIBABA_BAILIAN_API_KEY: z.string().optional(),
+	QWEN_DASHSCOPE_BASE_URL: z.url().optional(),
+	MINIMAX_API_KEY: z.string().optional(),
+	MINIMAX_TOKEN_PLAN_KEY: z.string().optional(),
+	DEEPSEEK_API_KEY: z.string().optional(),
 });
 
 export type WebEnv = z.infer<typeof webEnvSchema>;

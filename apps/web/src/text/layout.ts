@@ -1,4 +1,8 @@
-import type { TextBackground } from "@/text/background";
+import {
+	normalizeTextBackgroundShapePath,
+	normalizeTextBackgroundVariant,
+	type TextBackground,
+} from "@/text/background";
 import { DEFAULTS } from "@/timeline/defaults";
 import type { TextAlign } from "@/text/primitives";
 
@@ -13,6 +17,13 @@ export interface TextBlockMeasurement {
 	visualCenterOffset: number;
 	height: number;
 	maxWidth: number;
+}
+
+export interface TextVisualPadding {
+	left: number;
+	top: number;
+	right: number;
+	bottom: number;
 }
 
 export type TextCanvasContext =
@@ -30,8 +41,7 @@ export function setCanvasLetterSpacing({
 	letterSpacingPx: number;
 }): void {
 	if ("letterSpacing" in ctx) {
-		(ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing =
-			`${letterSpacingPx}px`;
+		Reflect.set(ctx, "letterSpacing", `${letterSpacingPx}px`);
 	}
 }
 
@@ -131,6 +141,17 @@ export function getTextBackgroundRect({
 		(background.paddingY ?? DEFAULTS.text.background.paddingY) * fontSizeRatio;
 	const offsetX = background.offsetX ?? DEFAULTS.text.background.offsetX;
 	const offsetY = background.offsetY ?? DEFAULTS.text.background.offsetY;
+	const variant = normalizeTextBackgroundVariant({ value: background.variant });
+
+	if (variant === "underline") {
+		const stripHeight = Math.max(textRect.height * 0.34, paddingY * 1.25);
+		return {
+			left: textRect.left - paddingX + offsetX,
+			top: textRect.top + textRect.height - stripHeight * 0.68 + offsetY,
+			width: textRect.width + paddingX * 2,
+			height: stripHeight,
+		};
+	}
 
 	return {
 		left: textRect.left - paddingX + offsetX,
@@ -140,16 +161,82 @@ export function getTextBackgroundRect({
 	};
 }
 
+export function getTextBackgroundVisualPadding({
+	background,
+	fontSizeRatio = 1,
+}: {
+	background: TextBackground;
+	fontSizeRatio?: number;
+}): TextVisualPadding {
+	const variant = normalizeTextBackgroundVariant({ value: background.variant });
+	const shapePath = normalizeTextBackgroundShapePath({
+		value: background.shapePath,
+	});
+	const tailWidth = 18 * fontSizeRatio;
+	const tailHeight = 16 * fontSizeRatio;
+
+	const basePadding =
+		variant === "speech-left"
+			? { left: tailWidth, top: 0, right: 0, bottom: tailHeight }
+			: variant === "speech-right"
+				? { left: 0, top: 0, right: tailWidth, bottom: tailHeight }
+			: variant === "tape"
+				? {
+						left: 8 * fontSizeRatio,
+						top: 2 * fontSizeRatio,
+						right: 8 * fontSizeRatio,
+						bottom: 2 * fontSizeRatio,
+					}
+				: variant === "underline"
+					? { left: 0, top: 0, right: 0, bottom: 6 * fontSizeRatio }
+					: { left: 0, top: 0, right: 0, bottom: 0 };
+
+	const shapePadding =
+		shapePath === "speech-round" || shapePath === "speech-point"
+			? {
+					left: Math.max(basePadding.left, 12 * fontSizeRatio),
+					top: basePadding.top,
+					right: Math.max(basePadding.right, 12 * fontSizeRatio),
+					bottom: Math.max(basePadding.bottom, 18 * fontSizeRatio),
+				}
+			: shapePath === "sticker-cut"
+				? {
+						left: Math.max(basePadding.left, 8 * fontSizeRatio),
+						top: Math.max(basePadding.top, 4 * fontSizeRatio),
+						right: Math.max(basePadding.right, 8 * fontSizeRatio),
+						bottom: Math.max(basePadding.bottom, 4 * fontSizeRatio),
+					}
+				: shapePath === "sticker-cloud"
+					? {
+							left: Math.max(basePadding.left, 12 * fontSizeRatio),
+							top: Math.max(basePadding.top, 10 * fontSizeRatio),
+							right: Math.max(basePadding.right, 12 * fontSizeRatio),
+							bottom: Math.max(basePadding.bottom, 10 * fontSizeRatio),
+						}
+					: shapePath === "sticker-burst"
+						? {
+								left: Math.max(basePadding.left, 14 * fontSizeRatio),
+								top: Math.max(basePadding.top, 14 * fontSizeRatio),
+								right: Math.max(basePadding.right, 14 * fontSizeRatio),
+								bottom: Math.max(basePadding.bottom, 14 * fontSizeRatio),
+							}
+						: basePadding;
+
+	return shapePadding;
+}
+
 export function getTextVisualRect({
 	textAlign,
 	block,
 	background,
 	fontSizeRatio = 1,
+	visualPadding,
 }: {
 	textAlign: TextAlign;
 	block: TextBlockMeasurement;
 	background: TextBackground;
 	fontSizeRatio?: number;
+	visualPadding?: TextVisualPadding;
 }): TextRect {
 	const textRect = getTextRect({ textAlign, block });
 	const backgroundRect = getTextBackgroundRect({
@@ -159,26 +246,54 @@ export function getTextVisualRect({
 		fontSizeRatio,
 	});
 
-	if (!backgroundRect) {
-		return textRect;
+	const baseRect = !backgroundRect
+		? textRect
+		: {
+				left: Math.min(textRect.left, backgroundRect.left),
+				top: Math.min(textRect.top, backgroundRect.top),
+				width:
+					Math.max(
+						textRect.left + textRect.width,
+						backgroundRect.left + backgroundRect.width,
+					) - Math.min(textRect.left, backgroundRect.left),
+				height:
+					Math.max(
+						textRect.top + textRect.height,
+						backgroundRect.top + backgroundRect.height,
+					) - Math.min(textRect.top, backgroundRect.top),
+			};
+	const backgroundVisualPadding = background.enabled
+		? getTextBackgroundVisualPadding({ background, fontSizeRatio })
+		: { left: 0, top: 0, right: 0, bottom: 0 };
+	const mergedVisualPadding = visualPadding
+		? {
+				left: Math.max(visualPadding.left, backgroundVisualPadding.left),
+				top: Math.max(visualPadding.top, backgroundVisualPadding.top),
+				right: Math.max(visualPadding.right, backgroundVisualPadding.right),
+				bottom: Math.max(visualPadding.bottom, backgroundVisualPadding.bottom),
+			}
+		: backgroundVisualPadding;
+
+	if (
+		mergedVisualPadding.left === 0 &&
+		mergedVisualPadding.top === 0 &&
+		mergedVisualPadding.right === 0 &&
+		mergedVisualPadding.bottom === 0
+	) {
+		return baseRect;
 	}
 
-	const left = Math.min(textRect.left, backgroundRect.left);
-	const top = Math.min(textRect.top, backgroundRect.top);
-	const right = Math.max(
-		textRect.left + textRect.width,
-		backgroundRect.left + backgroundRect.width,
-	);
-	const bottom = Math.max(
-		textRect.top + textRect.height,
-		backgroundRect.top + backgroundRect.height,
-	);
-
 	return {
-		left,
-		top,
-		width: right - left,
-		height: bottom - top,
+		left: baseRect.left - mergedVisualPadding.left,
+		top: baseRect.top - mergedVisualPadding.top,
+		width:
+			baseRect.width +
+			mergedVisualPadding.left +
+			mergedVisualPadding.right,
+		height:
+			baseRect.height +
+			mergedVisualPadding.top +
+			mergedVisualPadding.bottom,
 	};
 }
 

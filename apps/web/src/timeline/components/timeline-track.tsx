@@ -1,5 +1,6 @@
 "use client";
 
+import { getDisplayTrackName } from "@/timeline/tracks";
 import { useElementSelection } from "@/timeline/hooks/element/use-element-selection";
 import { TimelineElement } from "./timeline-element";
 import type { TimelineTrack } from "@/timeline";
@@ -46,13 +47,17 @@ export function TimelineTrackContent({
 	targetElementId = null,
 }: TimelineTrackContentProps) {
 	const { isElementSelected } = useElementSelection();
+	const displayTrackName = getDisplayTrackName({
+		trackName: track.name,
+		trackType: track.type,
+	});
 
 	return (
 		<div className="relative size-full">
 			<button
 				type="button"
 				className="absolute inset-0 m-0 size-full appearance-none border-0 bg-transparent p-0"
-				aria-label={`Select ${track.name} track`}
+				aria-label={displayTrackName.endsWith("轨道") ? `选择${displayTrackName}` : `选择${displayTrackName}轨道`}
 				onMouseUp={(event) => {
 					if (shouldIgnoreClick?.()) return;
 					onTrackMouseUp?.(event);

@@ -1,4 +1,5 @@
 import type { FontAtlas } from "@/fonts/types";
+import { getCustomFontSource } from "@/fonts/custom-fonts";
 import { SYSTEM_FONTS } from "@/fonts/system-fonts";
 
 const GOOGLE_FONTS_CSS = "https://fonts.googleapis.com/css2";
@@ -6,6 +7,8 @@ const FONT_ATLAS_PATH = "/fonts/font-atlas.json";
 const FONT_CHUNK_PATH_PREFIX = "/fonts/font-chunk-";
 
 const fullLoaded = new Set<string>();
+const injectedStylesheets = new Set<string>();
+const injectedFontFaces = new Set<string>();
 
 let cachedAtlas: FontAtlas | null = null;
 let atlasFetchPromise: Promise<FontAtlas | null> | null = null;
@@ -52,6 +55,53 @@ function preloadChunkImages({ atlas }: { atlas: FontAtlas }): void {
 	}
 }
 
+function appendStylesheet({ href }: { href: string }): Promise<void> {
+	if (injectedStylesheets.has(href)) {
+		return Promise.resolve();
+	}
+
+	const link = document.createElement("link");
+	link.rel = "stylesheet";
+	link.href = href;
+	document.head.appendChild(link);
+
+	return new Promise<void>((resolve) => {
+		link.addEventListener(
+			"load",
+			() => {
+				injectedStylesheets.add(href);
+				resolve();
+			},
+			{ once: true },
+		);
+		link.addEventListener(
+			"error",
+			() => {
+				resolve();
+			},
+			{ once: true },
+		);
+	});
+}
+
+function injectFontFaces({ family }: { family: string }): void {
+	const source = getCustomFontSource({ family });
+	if (!source?.fontFaces?.length) return;
+	if (injectedFontFaces.has(family)) return;
+
+	const style = document.createElement("style");
+	style.dataset.fontFamily = family;
+	style.textContent = source.fontFaces
+		.map((fontFace) => {
+			const weight = fontFace.weight ?? 400;
+			const fontStyle = fontFace.style ?? "normal";
+			return `@font-face { font-family: "${fontFace.family.replace(/"/g, '\\"')}"; src: ${fontFace.src}; font-style: ${fontStyle}; font-weight: ${weight}; font-display: swap; }`;
+		})
+		.join("\n");
+	document.head.appendChild(style);
+	injectedFontFaces.add(family);
+}
+
 export async function loadFullFont({
 	family,
 	weights = [400, 700],
@@ -60,18 +110,20 @@ export async function loadFullFont({
 	weights?: number[];
 }): Promise<void> {
 	if (fullLoaded.has(family)) return;
+	const customSource = getCustomFontSource({ family });
 
-	const url = `${GOOGLE_FONTS_CSS}?family=${encodeGoogleFontsFamily(family)}:wght@${weights.join(";")}&display=swap`;
-	const link = document.createElement("link");
-	link.rel = "stylesheet";
-	link.href = url;
-	document.head.appendChild(link);
-	await new Promise<void>((resolve) => {
-		link.addEventListener("load", () => resolve(), { once: true });
-		link.addEventListener("error", () => resolve(), { once: true });
-	});
+	if (customSource?.cssHref) {
+		await appendStylesheet({ href: customSource.cssHref });
+	} else if (customSource?.fontFaces?.length) {
+		injectFontFaces({ family });
+	} else {
+		const url = `${GOOGLE_FONTS_CSS}?family=${encodeGoogleFontsFamily(family)}:wght@${weights.join(";")}&display=swap`;
+		await appendStylesheet({ href: url });
+	}
+
+	const loadWeights = customSource?.weights?.length ? customSource.weights : weights;
 	await Promise.all(
-		weights.map((weight) =>
+		loadWeights.map((weight) =>
 			document.fonts.load(`${weight} 16px "${family.replace(/"/g, '\\"')}"`),
 		),
 	);

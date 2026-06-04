@@ -14,6 +14,7 @@ import { SectionField } from "@/components/section";
 import { NumberField } from "@/components/ui/number-field";
 import { Switch } from "@/components/ui/switch";
 import { ColorPicker } from "@/components/ui/color-picker";
+import { FontPicker } from "@/components/ui/font-picker";
 import {
 	Select,
 	SelectContent,
@@ -50,7 +51,7 @@ export function PropertyParamField({
 					<KeyframeToggle
 						isActive={keyframe.isActive}
 						isDisabled={keyframe.isDisabled}
-						title={`Toggle ${param.label.toLowerCase()} keyframe`}
+						title={`切换${param.label}关键帧`}
 						onToggle={keyframe.onToggle}
 					/>
 				) : undefined
@@ -138,26 +139,58 @@ function ParamInput({
 
 	if (param.type === "text") {
 		return (
-			<Textarea
+			<TextParamField
+				label={param.label}
 				value={String(value)}
-				onChange={(event) => onPreview(event.currentTarget.value)}
-				onBlur={onCommit}
+				onPreview={onPreview}
+				onCommit={onCommit}
 			/>
 		);
 	}
 
 	if (param.type === "font") {
 		return (
-			<input
-				className="border-input bg-accent h-9 w-full rounded-md border px-3 text-sm outline-none"
-				value={String(value)}
-				onChange={(event) => onPreview(event.currentTarget.value)}
-				onBlur={onCommit}
+			<FontPicker
+				defaultValue={String(value)}
+				onValueChange={(selected) => {
+					onPreview(selected);
+					onCommit();
+				}}
 			/>
 		);
 	}
 
 	return null;
+}
+
+function TextParamField({
+	label,
+	value,
+	onPreview,
+	onCommit,
+}: {
+	label: string;
+	value: string;
+	onPreview: (value: string) => void;
+	onCommit: () => void;
+}) {
+	const draft = usePropertyDraft({
+		displayValue: value,
+		parse: (input) => input,
+		onPreview,
+		onCommit,
+		supportsExpressions: false,
+	});
+
+	return (
+		<Textarea
+			value={draft.displayValue}
+			aria-label={label}
+			onFocus={draft.onFocus}
+			onChange={draft.onChange}
+			onBlur={draft.onBlur}
+		/>
+	);
 }
 
 function NumberParamField({

@@ -26,12 +26,12 @@ function formatKey({ key }: { key: string }): string {
 		.replace("right", "→")
 		.replace("up", "↑")
 		.replace("down", "↓")
-		.replace("space", "Space")
-		.replace("home", "Home")
-		.replace("enter", "Enter")
-		.replace("end", "End")
-		.replace("delete", "Delete")
-		.replace("backspace", "Backspace")
+		.replace("space", "空格")
+		.replace("home", "起始")
+		.replace("enter", "回车")
+		.replace("end", "结束")
+		.replace("delete", "删除")
+		.replace("backspace", "退格")
 		.replace("-", "+");
 }
 

@@ -343,7 +343,7 @@ export function TimelineElement({
 	const sourceAudioLabel =
 		element.type === "video"
 			? getSourceAudioActionLabel({ element })
-			: "Extract audio";
+			: "提取音频";
 	const isElementSourceAudioSeparated =
 		element.type === "video" && isSourceAudioSeparated({ element });
 	const hasKeyframes = elementKeyframes.length > 0;
@@ -649,7 +649,7 @@ function ResizeHandle({
 			)}
 			onMouseDown={(event) => onResizeStart({ event, element, track, side })}
 			onClick={(event) => event.stopPropagation()}
-			aria-label={`${isLeft ? "Left" : "Right"} resize handle`}
+			aria-label={`${isLeft ? "左侧" : "右侧"}缩放手柄`}
 		></button>
 	);
 }
@@ -722,7 +722,7 @@ function KeyframeIndicators({
 						indicatorTime: indicator.time,
 					})
 				}
-				aria-label="Select keyframe"
+				aria-label="选择关键帧"
 			>
 				<HugeiconsIcon
 					icon={KeyframeIcon}
@@ -875,7 +875,7 @@ function ExpandedKeyframeLanes({
 											indicatorTime: kf.time,
 										});
 									}}
-									aria-label="Select keyframe"
+									aria-label="选择关键帧"
 								>
 									<HugeiconsIcon
 										icon={KeyframeIcon}

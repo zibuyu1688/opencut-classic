@@ -19,8 +19,29 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+	Select,
+	SelectContent,
+	SelectGroup,
+	SelectItem,
+	SelectLabel,
+	SelectSeparator,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import {
+	getTtsVoicePresetValue,
+	isTtsProvider,
+	loadStoredTtsCredentials,
+	TTS_DEFAULT_VOICES,
+	TTS_PROVIDER_LABELS,
+	TTS_VOICE_PRESETS,
+	type TtsProvider,
+	type TtsStoredCredentials,
+} from "@/sounds/tts-config";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { useSoundSearch } from "@/sounds/use-sound-search";
 import { useSoundsStore } from "@/sounds/sounds-store";
@@ -34,33 +55,374 @@ import {
 	PlusSignIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { toast } from "sonner";
+import { z } from "zod";
+
+type GeneratedSpeech = {
+	id: number;
+	name: string;
+	provider: TtsProvider;
+	model: string;
+	voiceId: string;
+	text: string;
+	previewUrl: string;
+	duration: number;
+	createdAt: string;
+};
+
+const MAX_TTS_TEXT_LENGTH = 3000;
+
+const ttsSuccessResponseSchema = z.object({
+	provider: z.enum(["qwen", "minimax"]),
+	model: z.string(),
+	voiceId: z.string(),
+	mimeType: z.string(),
+	audioBase64: z.string(),
+});
+
+const ttsErrorResponseSchema = z.object({
+	error: z.string().optional(),
+	message: z.string().optional(),
+});
+
+function looksLikeConsoleOrDocUrl(value: string) {
+	return /bailian\.console\.aliyuncs\.com|help\.aliyun\.com/i.test(value);
+}
+
+function validateTtsRequest({
+	provider,
+	apiKey,
+	qwenBaseUrl,
+}: {
+	provider: TtsProvider;
+	apiKey: string;
+	qwenBaseUrl: string;
+}) {
+	if (provider !== "qwen") {
+		return null;
+	}
+
+	if (apiKey && (apiKey.startsWith("http://") || apiKey.startsWith("https://"))) {
+		return "Qwen Key 需要填写真实 API Key（通常以 sk- 开头），不能填写控制台或文档链接。";
+	}
+
+	if (qwenBaseUrl && looksLikeConsoleOrDocUrl(qwenBaseUrl)) {
+		return "Qwen DashScope Base URL 需要填写接口地址，不是控制台或文档页面链接。北京地域请留空，或填写 https://dashscope.aliyuncs.com/api/v1";
+	}
+
+	return null;
+}
+
+function getVoicePresetGroups({
+	provider,
+	presets,
+}: {
+	provider: TtsProvider;
+	presets: { id: string; label: string }[];
+}) {
+	if (provider !== "minimax") {
+		return [{ label: null, presets }];
+	}
+
+	const groups = new Map<string, { id: string; label: string }[]>();
+	for (const preset of presets) {
+		const [groupLabel] = preset.label.split(" · ");
+		const currentGroup = groups.get(groupLabel) ?? [];
+		currentGroup.push(preset);
+		groups.set(groupLabel, currentGroup);
+	}
+
+	return Array.from(groups.entries()).map(([label, groupedPresets]) => ({
+		label,
+		presets: groupedPresets,
+	}));
+}
 
 export function SoundsView() {
 	return (
-		<div className="flex h-full flex-col">
-			<Tabs defaultValue="sound-effects" className="flex h-full flex-col">
-				<div className="px-3 pt-4 pb-0">
-					<TabsList>
-						<TabsTrigger value="sound-effects">Sound effects</TabsTrigger>
-						<TabsTrigger value="saved">Saved</TabsTrigger>
-					</TabsList>
+			<div className="flex h-full flex-col">
+				<Tabs defaultValue="sound-effects" className="flex h-full flex-col">
+					<div className="px-3 pt-2 pb-0">
+						<TabsList className="gap-1">
+							<TabsTrigger className="h-6 px-2 text-xs" value="sound-effects">
+								音效
+							</TabsTrigger>
+							<TabsTrigger className="h-6 px-2 text-xs" value="tts">
+								文字转语音
+							</TabsTrigger>
+							<TabsTrigger className="h-6 px-2 text-xs" value="saved">
+								收藏
+							</TabsTrigger>
+						</TabsList>
+					</div>
+					<Separator className="my-2" />
+					<TabsContent
+						value="sound-effects"
+						className="mt-0 flex min-h-0 flex-1 flex-col p-5 pt-0"
+					>
+						<SoundEffectsView />
+					</TabsContent>
+					<TabsContent
+						value="tts"
+						className="mt-0 flex min-h-0 flex-1 flex-col p-5 pt-0"
+					>
+						<TtsView />
+					</TabsContent>
+					<TabsContent
+						value="saved"
+						className="mt-0 flex min-h-0 flex-1 flex-col p-5 pt-0"
+					>
+						<SavedSoundsView />
+					</TabsContent>
+				</Tabs>
+			</div>
+		);
+		}
+
+		function TtsView() {
+			const { addSoundToTimeline } = useSoundsStore();
+			const [provider, setProvider] = useState<TtsProvider>("qwen");
+			const [voiceId, setVoiceId] = useState(TTS_DEFAULT_VOICES.qwen);
+			const [ttsCredentials] = useState<TtsStoredCredentials>(() =>
+				loadStoredTtsCredentials(),
+			);
+			const [text, setText] = useState("");
+			const [isGenerating, setIsGenerating] = useState(false);
+			const [error, setError] = useState<string | null>(null);
+			const [generatedSpeeches, setGeneratedSpeeches] = useState<GeneratedSpeech[]>([]);
+
+			const handleGenerate = async () => {
+				const trimmedText = text.trim();
+				if (!trimmedText) {
+					return;
+				}
+
+				const requestValidationError = validateTtsRequest({
+					provider,
+					apiKey: ttsCredentials.providerKeys[provider].trim(),
+					qwenBaseUrl: ttsCredentials.qwenBaseUrl.trim(),
+				});
+				if (requestValidationError) {
+					setError(requestValidationError);
+					toast.error("语音生成失败", { description: requestValidationError });
+					return;
+				}
+
+				try {
+					setIsGenerating(true);
+					setError(null);
+
+					const response = await fetch("/api/sounds/tts", {
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+						},
+						body: JSON.stringify({
+							provider,
+							text: trimmedText,
+							voiceId: voiceId.trim() || TTS_DEFAULT_VOICES[provider],
+							apiKey: ttsCredentials.providerKeys[provider].trim() || undefined,
+							qwenBaseUrl:
+								provider === "qwen"
+									? ttsCredentials.qwenBaseUrl.trim() || undefined
+									: undefined,
+							minimaxPlanKey:
+								provider === "minimax"
+									? ttsCredentials.minimaxTokenPlanKey.trim() || undefined
+									: undefined,
+						}),
+					});
+
+					const rawPayload: unknown = await response.json();
+					const successPayload = ttsSuccessResponseSchema.safeParse(rawPayload);
+
+					if (!response.ok || !successPayload.success) {
+						const errorPayload = ttsErrorResponseSchema.safeParse(rawPayload);
+						throw new Error(
+							errorPayload.data?.error ||
+								errorPayload.data?.message ||
+								"语音生成失败，请稍后重试。",
+						);
+					}
+
+					const payload = successPayload.data;
+					const blob = base64ToBlob({
+						base64: payload.audioBase64,
+						mimeType: payload.mimeType,
+					});
+					const previewUrl = await blobToDataUrl({ blob });
+					const duration = await getBlobAudioDuration({ blob });
+
+					setGeneratedSpeeches((current) => [
+						{
+							id: Date.now(),
+							name: buildGeneratedSpeechName({ text: trimmedText, provider }),
+							provider: payload.provider,
+							model: payload.model,
+							voiceId: payload.voiceId,
+							text: trimmedText,
+							previewUrl,
+							duration,
+							createdAt: new Date().toISOString(),
+						},
+						...current,
+					]);
+
+					toast.success("语音已生成", {
+						description: `${TTS_PROVIDER_LABELS[payload.provider]} · ${payload.model}`,
+					});
+				} catch (generationError) {
+					const message =
+						generationError instanceof Error
+							? generationError.message
+							: "语音生成失败，请稍后重试。";
+					setError(message);
+					toast.error("语音生成失败", { description: message });
+				} finally {
+					setIsGenerating(false);
+				}
+			};
+
+			const handleAddGeneratedSpeechToTimeline = async ({
+				speech,
+			}: {
+				speech: GeneratedSpeech;
+			}) => {
+				await addSoundToTimeline({
+					sound: buildGeneratedSoundEffect({ speech }),
+				});
+			};
+
+			const selectedVoicePreset = getTtsVoicePresetValue({ provider, voiceId });
+			const voicePresetGroups = getVoicePresetGroups({
+				provider,
+				presets: TTS_VOICE_PRESETS[provider],
+			});
+
+			return (
+				<div className="mt-1 flex h-full flex-col gap-2">
+					<div className="grid gap-1.5">
+						<div className="flex flex-col gap-0">
+							<p className="text-xs leading-none font-medium">服务商</p>
+							<Select
+								value={provider}
+								onValueChange={(value) => {
+									if (!isTtsProvider(value)) {
+										return;
+									}
+									setProvider(value);
+									setVoiceId(TTS_DEFAULT_VOICES[value]);
+								}}
+							>
+								<SelectTrigger className="h-7 w-full bg-background text-xs">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="qwen">阿里巴巴 Qwen-TTS</SelectItem>
+									<SelectItem value="minimax">MiniMax</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+
+						<div className="grid grid-cols-2 gap-1.5">
+							<div className="flex flex-col gap-0.5">
+								<p className="text-sm font-medium">音色名称</p>
+								<Select
+									value={selectedVoicePreset}
+									onValueChange={(value) => {
+										if (value !== "custom") {
+											setVoiceId(value);
+										}
+									}}
+								>
+									<SelectTrigger className="h-8 w-full bg-background">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{voicePresetGroups.map((group, groupIndex) => (
+											<SelectGroup key={group.label ?? `default-${groupIndex}`}>
+												{groupIndex > 0 && <SelectSeparator />}
+												{group.label && <SelectLabel>{group.label}</SelectLabel>}
+												{group.presets.map((preset) => (
+													<SelectItem key={preset.id} value={preset.id}>
+														{preset.label}
+													</SelectItem>
+												))}
+											</SelectGroup>
+										))}
+										<SelectSeparator />
+										<SelectItem value="custom">自定义</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
+
+							<div className="flex flex-col gap-0.5">
+								<p className="text-sm font-medium">音色 ID</p>
+								<Input
+									className="h-8"
+									value={voiceId}
+									onChange={({ currentTarget }) => setVoiceId(currentTarget.value)}
+									placeholder={TTS_DEFAULT_VOICES[provider]}
+								/>
+							</div>
+						</div>
+
+						<Textarea
+							value={text}
+							onChange={({ currentTarget }) => setText(currentTarget.value)}
+							placeholder="输入要合成的文字"
+							className="min-h-12"
+							maxLength={MAX_TTS_TEXT_LENGTH}
+						/>
+
+						<div className="flex items-center justify-between gap-3">
+							<p className="text-muted-foreground text-xs">
+								{text.length}/{MAX_TTS_TEXT_LENGTH}
+							</p>
+							<Button
+								onClick={handleGenerate}
+								disabled={isGenerating || !text.trim()}
+							>
+								{isGenerating ? "正在生成..." : "生成语音"}
+							</Button>
+						</div>
+
+						{error && <p className="text-destructive text-sm">{error}</p>}
+					</div>
+
+					<Separator />
+
+					<div className="relative h-full overflow-hidden">
+						<ScrollArea className="h-full flex-1">
+							<div className="flex flex-col gap-4">
+								{generatedSpeeches.length === 0 ? (
+									<div className="text-muted-foreground text-sm">
+										生成后的语音会显示在这里
+									</div>
+								) : (
+									generatedSpeeches.map((speech) => (
+										<div
+											key={speech.id}
+											className="flex items-center justify-between gap-3 rounded-md border p-3"
+										>
+											<audio controls src={speech.previewUrl} className="min-w-0 flex-1">
+												<track kind="captions" />
+											</audio>
+											<Button
+												size="sm"
+												className="shrink-0"
+												onClick={() => handleAddGeneratedSpeechToTimeline({ speech })}
+											>
+												加入时间线
+											</Button>
+										</div>
+									))
+								)}
+							</div>
+						</ScrollArea>
+					</div>
 				</div>
-				<Separator className="my-4" />
-				<TabsContent
-					value="sound-effects"
-					className="mt-0 flex min-h-0 flex-1 flex-col p-5 pt-0"
-				>
-					<SoundEffectsView />
-				</TabsContent>
-				<TabsContent
-					value="saved"
-					className="mt-0 flex min-h-0 flex-1 flex-col p-5 pt-0"
-				>
-					<SavedSoundsView />
-				</TabsContent>
-			</Tabs>
-		</div>
-	);
+			);
 }
 
 function SoundEffectsView() {
@@ -186,12 +548,11 @@ function SoundEffectsView() {
 		return () => clearTimeout(timeoutId);
 	}, [scrollPosition, scrollAreaRef]);
 
-	const handleScrollWithPosition = ({
-		currentTarget,
-	}: React.UIEvent<HTMLDivElement>) => {
+	const handleScrollWithPosition = (event: React.UIEvent<HTMLDivElement>) => {
+		const { currentTarget } = event;
 		const { scrollTop } = currentTarget;
 		setScrollPosition({ position: scrollTop });
-		handleScroll({ currentTarget } as React.UIEvent<HTMLDivElement>);
+		handleScroll(event);
 	};
 
 	const displayedSounds = searchQuery ? searchResults : topSoundEffects;
@@ -227,7 +588,7 @@ function SoundEffectsView() {
 		<div className="mt-1 flex h-full flex-col gap-5">
 			<div className="flex items-center gap-3">
 				<Input
-					placeholder="Search sound effects"
+					placeholder="搜索音效"
 					className="w-full"
 					containerClassName="w-full"
 					value={searchQuery}
@@ -252,12 +613,12 @@ function SoundEffectsView() {
 							checked={showCommercialOnly}
 							onCheckedChange={() => toggleCommercialFilter()}
 						>
-							Show only commercially licensed
+							仅显示可商用授权
 						</DropdownMenuCheckboxItem>
 						<div className="text-muted-foreground px-2 py-1.5 text-xs">
 							{showCommercialOnly
-								? "Only showing sounds licensed for commercial use"
-								: "Showing all sounds regardless of license"}
+								? "当前仅显示允许商业使用的音效"
+								: "当前显示全部音效，不区分授权类型"}
 						</div>
 					</DropdownMenuContent>
 				</DropdownMenu>
@@ -272,11 +633,11 @@ function SoundEffectsView() {
 					<div className="flex flex-col gap-4">
 						{isLoading && !searchQuery && (
 							<div className="text-muted-foreground text-sm">
-								Loading sounds...
+								正在加载音效...
 							</div>
 						)}
 						{isSearching && searchQuery && (
-							<div className="text-muted-foreground text-sm">Searching...</div>
+							<div className="text-muted-foreground text-sm">正在搜索...</div>
 						)}
 						{displayedSounds.map((sound) => (
 							<AudioItem
@@ -288,12 +649,12 @@ function SoundEffectsView() {
 						))}
 						{!isLoading && !isSearching && displayedSounds.length === 0 && (
 							<div className="text-muted-foreground text-sm">
-								{searchQuery ? "No sounds found" : "No sounds available"}
+								{searchQuery ? "未找到音效" : "暂无可用音效"}
 							</div>
 						)}
 						{isLoadingMore && (
 							<div className="text-muted-foreground py-4 text-center text-sm">
-								Loading more sounds...
+								正在加载更多音效...
 							</div>
 						)}
 					</div>
@@ -381,7 +742,7 @@ function SavedSoundsView() {
 		return (
 			<div className="flex h-full items-center justify-center">
 				<div className="text-muted-foreground text-sm">
-					Loading saved sounds...
+					正在加载收藏音效...
 				</div>
 			</div>
 		);
@@ -391,7 +752,7 @@ function SavedSoundsView() {
 		return (
 			<div className="flex h-full items-center justify-center">
 				<div className="text-destructive text-sm">
-					Error: {savedSoundsError}
+					错误：{savedSoundsError}
 				</div>
 			</div>
 		);
@@ -405,9 +766,9 @@ function SavedSoundsView() {
 					className="text-muted-foreground size-10"
 				/>
 				<div className="flex flex-col gap-2 text-center">
-					<p className="text-lg font-medium">No saved sounds</p>
+					<p className="text-lg font-medium">还没有收藏音效</p>
 					<p className="text-muted-foreground text-sm text-balance">
-						Click the heart icon on any sound to save it here
+						点击任意音效上的爱心按钮即可收藏到这里
 					</p>
 				</div>
 			</div>
@@ -418,8 +779,7 @@ function SavedSoundsView() {
 		<div className="mt-1 flex h-full flex-col gap-5">
 			<div className="flex items-center justify-between">
 				<p className="text-muted-foreground text-sm">
-					{savedSounds.length} saved{" "}
-					{savedSounds.length === 1 ? "sound" : "sounds"}
+					已收藏 {savedSounds.length} 个音效
 				</p>
 				<Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
 					<DialogTrigger asChild>
@@ -428,20 +788,20 @@ function SavedSoundsView() {
 							size="sm"
 							className="text-muted-foreground hover:text-destructive h-auto !opacity-100"
 						>
-							Clear all
+							清空全部
 						</Button>
 					</DialogTrigger>
 					<DialogContent>
 						<DialogHeader>
-							<DialogTitle>Clear all saved sounds?</DialogTitle>
+							<DialogTitle>清空全部收藏音效？</DialogTitle>
 							<DialogDescription>
-								This will permanently remove all {savedSounds.length} saved
-								sounds from your collection. This action cannot be undone.
+								这会从你的收藏中永久移除全部 {savedSounds.length} 个音效，
+								此操作无法撤销。
 							</DialogDescription>
 						</DialogHeader>
 						<DialogFooter>
 							<Button variant="text" onClick={() => setShowClearDialog(false)}>
-								Cancel
+								取消
 							</Button>
 							<Button
 								variant="destructive"
@@ -453,7 +813,7 @@ function SavedSoundsView() {
 									setShowClearDialog(false);
 								}}
 							>
-								Clear all sounds
+								清空全部音效
 							</Button>
 						</DialogFooter>
 					</DialogContent>
@@ -476,6 +836,92 @@ function SavedSoundsView() {
 			</div>
 		</div>
 	);
+}
+
+function buildGeneratedSpeechName({
+	text,
+	provider,
+}: {
+	text: string;
+	provider: TtsProvider;
+}) {
+	const normalized = text.replace(/\s+/g, " ").trim();
+	if (!normalized) {
+		return `${TTS_PROVIDER_LABELS[provider]} 语音`;
+	}
+	return normalized.length > 24 ? `${normalized.slice(0, 24)}...` : normalized;
+}
+
+function base64ToBlob({
+	base64,
+	mimeType,
+}: {
+	base64: string;
+	mimeType: string;
+}) {
+	const binary = atob(base64);
+	const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+	return new Blob([bytes], { type: mimeType });
+}
+
+function blobToDataUrl({ blob }: { blob: Blob }) {
+	return new Promise<string>((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => {
+			if (typeof reader.result === "string") {
+				resolve(reader.result);
+				return;
+			}
+			reject(new Error("无法读取生成音频数据"));
+		};
+		reader.onerror = () => reject(new Error("无法读取生成音频数据"));
+		reader.readAsDataURL(blob);
+	});
+}
+
+function getBlobAudioDuration({ blob }: { blob: Blob }) {
+	const objectUrl = URL.createObjectURL(blob);
+	const audio = new Audio(objectUrl);
+
+	return new Promise<number>((resolve, reject) => {
+		audio.onloadedmetadata = () => {
+			URL.revokeObjectURL(objectUrl);
+			resolve(audio.duration > 0 ? audio.duration : 1);
+		};
+		audio.onerror = () => {
+			URL.revokeObjectURL(objectUrl);
+			reject(new Error("无法读取生成音频时长"));
+		};
+	});
+}
+
+function buildGeneratedSoundEffect({
+	speech,
+}: {
+	speech: GeneratedSpeech;
+}): SoundEffect {
+	return {
+		id: speech.id,
+		name: speech.name,
+		description: speech.text,
+		url: speech.previewUrl,
+		previewUrl: speech.previewUrl,
+		downloadUrl: speech.previewUrl,
+		duration: speech.duration,
+		filesize: 0,
+		type: "audio",
+		channels: 1,
+		bitrate: 0,
+		bitdepth: 0,
+		samplerate: 0,
+		username: TTS_PROVIDER_LABELS[speech.provider],
+		tags: ["tts", speech.provider],
+		license: "AI Generated",
+		created: speech.createdAt,
+		downloads: 0,
+		rating: 0,
+		ratingCount: 0,
+	};
 }
 
 interface AudioItemProps {
@@ -537,7 +983,7 @@ function AudioItem({ sound, isPlaying, onPlay }: AudioItemProps) {
 					size="icon"
 					className="text-muted-foreground hover:text-foreground w-auto !opacity-100"
 					onClick={handleAddToTimeline}
-					title="Add to timeline"
+					title="添加到时间线"
 				>
 					<HugeiconsIcon icon={PlusSignIcon} />
 				</Button>
@@ -550,7 +996,7 @@ function AudioItem({ sound, isPlaying, onPlay }: AudioItemProps) {
 							: "text-muted-foreground"
 					}`}
 					onClick={handleSaveClick}
-					title={isSaved ? "Remove from saved" : "Save sound"}
+					title={isSaved ? "从收藏中移除" : "收藏音效"}
 				>
 					<HugeiconsIcon
 						icon={FavouriteIcon}

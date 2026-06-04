@@ -2,7 +2,10 @@ import { BaseNode } from "./base-node";
 import type { TextElement } from "@/timeline";
 import type { EffectPass } from "@/effects/types";
 import type { BlendMode, Transform } from "@/rendering";
-import { drawMeasuredTextLayout } from "@/text/primitives";
+import {
+	drawMeasuredTextLayout,
+	strokeMeasuredTextLayout,
+} from "@/text/primitives";
 import type { MeasuredTextElement } from "@/text/measure-element";
 
 export type TextNodeParams = TextElement & {
@@ -46,6 +49,73 @@ export function renderTextToContext({
 	ctx.scale(resolved.transform.scaleX, resolved.transform.scaleY);
 	if (resolved.transform.rotate) {
 		ctx.rotate((resolved.transform.rotate * Math.PI) / 180);
+	}
+
+	const { resolvedStyle } = resolved.measuredText;
+	const glowHorizontalRad = (resolvedStyle.glow.horizontalAngle * Math.PI) / 180;
+	const glowVerticalRad = (resolvedStyle.glow.verticalAngle * Math.PI) / 180;
+	const glowOffsetX = Math.cos(glowHorizontalRad) * resolvedStyle.glow.range;
+	const glowOffsetY = Math.sin(glowVerticalRad) * resolvedStyle.glow.range;
+	const shadowAngleRad = (resolvedStyle.shadow.angle * Math.PI) / 180;
+	const shadowOffsetX =
+		resolvedStyle.shadow.distance !== 0
+			? Math.cos(shadowAngleRad) * resolvedStyle.shadow.distance
+			: resolvedStyle.shadow.offsetX;
+	const shadowOffsetY =
+		resolvedStyle.shadow.distance !== 0
+			? Math.sin(shadowAngleRad) * resolvedStyle.shadow.distance
+			: resolvedStyle.shadow.offsetY;
+
+	if (resolvedStyle.glow.enabled && resolvedStyle.glow.blur > 0) {
+		ctx.save();
+		ctx.translate(glowOffsetX, glowOffsetY);
+		ctx.shadowColor = resolvedStyle.glow.color;
+		ctx.shadowBlur =
+			resolvedStyle.glow.blur +
+			(resolvedStyle.glow.style === "burst"
+				? resolvedStyle.glow.range * 0.8
+				: resolvedStyle.glow.range * 0.45);
+		ctx.globalAlpha = Math.min(
+			1,
+			Math.max(0.12, resolvedStyle.glow.intensity / 100),
+		);
+		drawMeasuredTextLayout({
+			ctx,
+			layout: resolved.measuredText,
+			textColor: resolvedStyle.glow.color,
+			textBaseline: baseline,
+		});
+		ctx.restore();
+	}
+
+	if (resolvedStyle.shadow.enabled) {
+		ctx.save();
+		ctx.translate(shadowOffsetX, shadowOffsetY);
+		ctx.globalAlpha = Math.min(
+			1,
+			Math.max(0, resolvedStyle.shadow.opacity / 100),
+		);
+		if (resolvedStyle.shadow.blur > 0) {
+			ctx.shadowColor = resolvedStyle.shadow.color;
+			ctx.shadowBlur = resolvedStyle.shadow.blur;
+		}
+		drawMeasuredTextLayout({
+			ctx,
+			layout: resolved.measuredText,
+			textColor: resolvedStyle.shadow.color,
+			textBaseline: baseline,
+		});
+		ctx.restore();
+	}
+
+	if (resolvedStyle.stroke.enabled && resolvedStyle.stroke.width > 0) {
+		strokeMeasuredTextLayout({
+			ctx,
+			layout: resolved.measuredText,
+			strokeColor: resolvedStyle.stroke.color,
+			strokeWidth: resolvedStyle.stroke.width,
+			textBaseline: baseline,
+		});
 	}
 
 	drawMeasuredTextLayout({

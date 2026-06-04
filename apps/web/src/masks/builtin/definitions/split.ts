@@ -238,7 +238,7 @@ export const splitMaskDefinition: MaskDefinition<"split"> = {
 	params: [
 		{
 			key: "centerX",
-			label: "X",
+			label: "X 轴",
 			type: "number",
 			default: 0,
 			min: -100,
@@ -248,7 +248,7 @@ export const splitMaskDefinition: MaskDefinition<"split"> = {
 		},
 		{
 			key: "centerY",
-			label: "Y",
+			label: "Y 轴",
 			type: "number",
 			default: 0,
 			min: -100,
@@ -258,7 +258,7 @@ export const splitMaskDefinition: MaskDefinition<"split"> = {
 		},
 		{
 			key: "rotation",
-			label: "Rotation",
+			label: "旋转",
 			type: "number",
 			default: 0,
 			min: 0,

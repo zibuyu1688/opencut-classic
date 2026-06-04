@@ -23,7 +23,7 @@ export function GridPopover({ children }: { children: React.ReactNode }) {
 			<PopoverTrigger>{children}</PopoverTrigger>
 			<PopoverContent sideOffset={8} className="w-60 px-0">
 				<div className="flex flex-col gap-2 px-4">
-					<Label>Guides</Label>
+					<Label>参考线</Label>
 					<div className="grid grid-cols-3 gap-1">
 						{GUIDE_REGISTRY.map((guide) => (
 							<GridItem
@@ -73,7 +73,6 @@ function GridItem({
 		<button
 			type="button"
 			onClick={onClick}
-			aria-pressed={isSelected}
 			className={cn(
 				"flex cursor-pointer rounded-sm flex-col gap-2 px-1.5 py-1.5 hover:bg-foreground/5",
 				isSelected && "bg-primary/5! text-primary",

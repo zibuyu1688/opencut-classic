@@ -11,11 +11,22 @@ export const ANIMATION_PROPERTY_PATHS = [
 	"volume",
 	"color",
 	"background.color",
+	"background.opacity",
 	"background.paddingX",
 	"background.paddingY",
 	"background.offsetX",
 	"background.offsetY",
 	"background.cornerRadius",
+	"shadow.opacity",
+	"shadow.blur",
+	"shadow.distance",
+	"shadow.angle",
+	"glow.intensity",
+	"glow.range",
+	"glow.verticalAngle",
+	"glow.horizontalAngle",
+	"glow.blur",
+	"warp.amount",
 ] as const;
 
 export type AnimationPropertyPath = (typeof ANIMATION_PROPERTY_PATHS)[number];

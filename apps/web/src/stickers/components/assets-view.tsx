@@ -79,7 +79,7 @@ export function StickersView() {
 				variant="underline"
 				className="mt-2 flex min-h-0 flex-1 flex-col"
 			>
-				<TabsList aria-label="Sticker categories">
+				<TabsList aria-label="贴纸分类">
 					{Object.entries(STICKER_CATEGORIES).map(([key, label]) => (
 						<TabsTrigger key={key} value={key}>
 							{label}
@@ -141,7 +141,7 @@ function EmptyView({ message }: { message: string }) {
 				className="text-muted-foreground size-10"
 			/>
 			<div className="flex flex-col gap-2 text-center">
-				<p className="text-lg font-medium">No stickers found</p>
+				<p className="text-lg font-medium">未找到贴纸</p>
 				<p className="text-muted-foreground text-sm text-balance">{message}</p>
 			</div>
 		</div>
@@ -215,7 +215,7 @@ function StickersContentView() {
 
 		// "all" tab search — sections are in browseContent, fall through to section rendering below
 		if (selectedCategory !== "all" && searchQuery) {
-			return <EmptyView message={`No stickers found for "${searchQuery}"`} />;
+			return <EmptyView message={`没有找到“${searchQuery}”相关贴纸`} />;
 		}
 	}
 
@@ -233,10 +233,10 @@ function StickersContentView() {
 			<EmptyView
 				message={
 					viewMode === "search"
-						? `No stickers found for "${searchQuery}"`
+						? `没有找到“${searchQuery}”相关贴纸`
 						: selectedCategory === "all"
-							? "No stickers available yet."
-							: `No stickers available in ${categoryLabel.toLowerCase()} yet.`
+							? "暂时还没有可用贴纸。"
+							: `${categoryLabel}分类下暂时还没有可用贴纸。`
 				}
 			/>
 		);
